@@ -1,0 +1,28 @@
+version: 1.0
+provider:
+  name: openfaas
+  gateway: http://127.0.0.1:8080
+functions:
+  decrypt-payload:
+    lang: node24
+    handler: ./decrypt-payload
+    image: ${REGISTRY:-ttl.sh}/${OWNER:-openfaas-examples}/decrypt-payload:${TAG:-latest}
+    secrets:
+      - master-key
+
+  hn-serverless-monitor:
+    lang: python3-http
+    handler: ./hn-serverless-monitor
+    image: ${REGISTRY:-ttl.sh}/${OWNER:-openfaas-examples}/hn-serverless-monitor:${TAG:-latest}
+    secrets:
+      - discord-webhook-url
+      - hn-pg-connection
+    annotations:
+      topic: cron-function
+      schedule: "*/15 * * * *"
+
+  enrich-telemetry:
+    lang: golang-middleware
+    handler: ./enrich-telemetry
+    image: ${REGISTRY:-ttl.sh}/${OWNER:-openfaas-examples}/enrich-telemetry:${TAG:-latest}
+
