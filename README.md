@@ -8,6 +8,15 @@ Example functions from the OpenFaaS blog post [**How To Train Your Agent**](http
 
 An OpenFaaS function that enriches telemetry events with geolocation data (country, city, coordinates, ASN) derived from the event's `ip` field using embedded GeoLite2 databases.
 
+## Prompt
+
+```
+Create a function the accepts telemetry events as input and enrich the
+events with geolocation data: country, ASN, city, etc. This will require
+downloading or embedding the geo2lite database:
+https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/.
+```
+
 ## How it works
 
 1. Receives a JSON object or array of objects, each with an `ip` field
@@ -159,6 +168,21 @@ curl -s http://127.0.0.1:9090 \
 
 An OpenFaaS function that decrypts an AES-128-CBC encrypted payload, parses the inner JSON, and returns it with a `processedAt` timestamp appended.
 
+## Prompt
+
+```
+Write a function in node.js that takes an encrypted payload (internally
+it's JSON), and uses a single master key AES 128-bit attached to it via
+a secret. It decrypts it and adds a processedAt field
+
+{
+  "processedAt": "RFC time",
+  "cipher": "ZUDWIOeeef==="
+}
+
+The body is returned back to the caller.
+```
+
 ## How it works
 
 1. Receives a JSON body containing a `cipher` field
@@ -266,3 +290,69 @@ node encrypt-test.js '{"hello":"world"}'
 | `400` | Missing or malformed JSON body, or missing `cipher` field |
 | `422` | Decryption failed (wrong key, corrupt cipher) or decrypted bytes are not valid JSON |
 | `500` | Master key could not be read from the secrets mount |
+
+---
+
+# hn-serverless-monitor
+
+A cron-triggered OpenFaaS function that polls the Hacker News Algolia API every 15 minutes for posts and comments mentioning "serverless", deduplicates them against a PostgreSQL database, and posts each new hit to a Discord channel via a webhook.
+
+## Prompts
+
+Initial prompt:
+
+```
+Every 15 minutes, connect to Hacker News and look for comments or posts
+on serverless. We want to keep everything we've seen in a database so we
+don't have to re-scan it again. I want you to post each unique article
+to a Discord channel using a webhook URL: https://discord.com/api/webhooks/
+```
+
+Follow-up prompt (the first iteration used SQLite; this switched it to PostgreSQL):
+
+```
+Switch to using postgresql. The connection string should be configurable.
+```
+
+## How it works
+
+1. Triggered every 15 minutes by the [cron-connector](https://docs.openfaas.com/reference/cron/) via the `topic: cron-function` and `schedule: "*/15 * * * *"` annotations
+2. Queries the [HN Algolia API](https://hn.algolia.com/api) for `story` and `comment` hits matching `serverless` from the last 24 hours
+3. Checks each item against a `seen_items` table in PostgreSQL
+4. For each unseen item, posts a Discord embed via the webhook and records the item id
+
+## Secrets
+
+Two secrets are required:
+
+| Name | Contents |
+|------|----------|
+| `discord-webhook-url` | Full Discord webhook URL, e.g. `https://discord.com/api/webhooks/...` |
+| `hn-pg-connection` | A libpq connection string, e.g. `postgres://user:pass@host:5432/dbname` |
+
+Create them with:
+
+```bash
+faas-cli secret create discord-webhook-url --from-file .secrets/discord-webhook-url
+faas-cli secret create hn-pg-connection    --from-file .secrets/hn-pg-connection
+```
+
+## Deploy
+
+```bash
+faas-cli up -f stack.yaml --filter hn-serverless-monitor --tag=digest
+```
+
+## Invoke manually
+
+The function is normally driven by the cron-connector but can be invoked on demand:
+
+```bash
+faas-cli invoke hn-serverless-monitor < /dev/null
+```
+
+A successful run returns:
+
+```json
+{"posted": 2, "posted_ids": ["43928412", "43928577"], "errors": []}
+```
