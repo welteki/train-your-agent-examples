@@ -1,3 +1,9 @@
+# train-your-agent-examples
+
+Example functions from the OpenFaaS blog post [**How To Train Your Agent**](https://www.openfaas.com/blog/how-to-train-your-agent-to-write-functions/), written by an AI coding agent using the [`openfaas-function-dev`](https://github.com/openfaas/agent-skills/tree/master/skills/openfaas-function-dev) skill.
+
+---
+
 # enrich-telemetry
 
 An OpenFaaS function that enriches telemetry events with geolocation data (country, city, coordinates, ASN) derived from the event's `ip` field using embedded GeoLite2 databases.
