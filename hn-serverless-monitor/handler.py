@@ -1,5 +1,4 @@
 import json
-import os
 import requests
 import psycopg2
 import psycopg2.extras
@@ -10,12 +9,13 @@ DISCORD_SECRET_PATH = "/var/openfaas/secrets/discord-webhook-url"
 PG_CONN_SECRET_PATH = "/var/openfaas/secrets/hn-pg-connection"
 
 
+def read_secret(path):
+    with open(path) as f:
+        return f.read().strip()
+
+
 def get_pg_conn_string():
-    try:
-        with open(PG_CONN_SECRET_PATH) as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        return os.environ.get("PG_CONNECTION_STRING", "")
+    return read_secret(PG_CONN_SECRET_PATH)
 
 
 def get_db():
@@ -54,11 +54,7 @@ def mark_seen(conn, item_id, title, url):
 
 
 def get_discord_url():
-    try:
-        with open(DISCORD_SECRET_PATH) as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        return os.environ.get("DISCORD_WEBHOOK_URL", "")
+    return read_secret(DISCORD_SECRET_PATH)
 
 
 def post_to_discord(webhook_url, title, hn_url, story_url, author, points):
@@ -89,9 +85,10 @@ def search_hn(query="serverless", tags="story", num_hours=1):
 
 
 def handle(event, context):
-    webhook_url = get_discord_url()
-    if not webhook_url:
-        return {"statusCode": 500, "body": "Discord webhook URL not configured"}
+    try:
+        webhook_url = get_discord_url()
+    except Exception as e:
+        return {"statusCode": 500, "body": f"Discord webhook secret error: {e}"}
 
     try:
         conn = get_db()
